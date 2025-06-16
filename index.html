@@ -20,6 +20,13 @@
         </header>
 
         <div class="card shadow-sm mb-4">
+            <div class="alert alert-info d-flex align-items-center gap-2" role="alert">
+                <i class="bi bi-person-circle fs-4"></i>
+                <div class="flex-grow-1">
+                    <label class="form-label mb-0">Seu nome para o ranking:</label>
+                    <input type="text" id="userNameInput" class="form-control" placeholder="Digite seu nome" />
+                </div>
+            </div>
             <div class="card-body">
                 <h5 class="card-title">Adicionar Novo Vídeo</h5>
                 <form id="addVideoForm">
@@ -59,8 +66,15 @@
             </div>
         </div>
 
-        <div id="video-gallery" class="row">
-            <!-- Vídeos serão inseridos aqui via JavaScript -->
+        <div class="row">
+            <div class="col-12 col-md-9">
+                <div id="video-gallery" class="row">
+                    <!-- Vídeos serão inseridos aqui via JavaScript -->
+                </div>
+            </div>
+            <aside class="col-12 col-md-3 mt-4 mt-md-0" id="rank-container">
+                <!-- Ranking será carregado aqui -->
+            </aside>
         </div>
     </div>
 
@@ -105,6 +119,20 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="script.js"></script>
+    <script>
+        // Insere o rank HTML assim que a página carregar (para evitar quebrar JS)
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch('rank.html')
+              .then(r=>r.text())
+              .then(html=>{
+                  const rankEl = document.getElementById('rank-container');
+                  rankEl.innerHTML = html;
+                  if (typeof renderRank === 'function') {
+                      renderRank();
+                  }
+              });
+        });
+    </script>
 
     <!-- Modal de Edição -->
     <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
@@ -129,6 +157,11 @@
                 <label for="editVideoUrl" class="form-label">URL do Vídeo</label>
                 <input type="url" class="form-control" id="editVideoUrl" required>
               </div>
+              <div class="mb-3">
+                <label for="editAddedBy" class="form-label">Seu nome para o ranking</label>
+                <input type="text" class="form-control" id="editAddedBy" placeholder="Digite seu nome">
+              </div>
+
               <button type="submit" class="btn btn-primary">Salvar Alterações</button>
             </form>
           </div>

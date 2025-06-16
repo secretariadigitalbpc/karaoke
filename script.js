@@ -1,5 +1,5 @@
 let player;
-let playlist = [];
+let playlist = []; // será carregado do localStorage após DOM pronto
 let currentVideoIndex = 0;
 
 // 1. Esta função cria o <iframe> (o player de vídeo) depois que o código da API é baixado.
@@ -61,8 +61,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearPlaylistBtn = document.getElementById('clear-playlist-btn');
     const videoUrlInput = document.getElementById('videoUrl');
     const playerModalLabel = document.getElementById('playerModalLabel');
+    const userNameInput = document.getElementById('userNameInput');
 
     let allVideos = []; // Armazena todos os vídeos carregados
+
+    // Carrega playlist salva
+    playlist = getStoredPlaylist();
+    renderPlaylist();
+
+        // Renderiza ranking ao iniciar
+    renderRank();
+
+    // Preenche nome salvo, se existir
+    userNameInput.value = localStorage.getItem('karaoke_user_name') || '';
 
     // ---------- Persistência no GitHub Pages (localStorage) ----------
     function getStoredVideos() {
@@ -75,6 +86,39 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveVideos(videos) {
         localStorage.setItem('karaoke_videos', JSON.stringify(videos));
     }
+
+    // ---------- Persistência da Playlist ----------
+    function getStoredPlaylist() {
+        try {
+            return JSON.parse(localStorage.getItem('karaoke_playlist')) || [];
+        } catch (e) {
+            return [];
+        }
+    }
+    function savePlaylist(list) {
+        localStorage.setItem('karaoke_playlist', JSON.stringify(list));
+    }
+
+    // ---------- Ranking ----------
+
+    function renderRank() {
+    const rankListEl = document.getElementById('rank-list');
+    if (!rankListEl) return;
+
+    // Calcula o ranking diretamente a partir dos vídeos salvos, garantindo persistência
+    const videos = getStoredVideos();
+    const rank = {};
+    videos.forEach(v => {
+        if (v.addedBy) {
+            rank[v.addedBy] = (rank[v.addedBy] || 0) + 1;
+        }
+    });
+
+    const sorted = Object.entries(rank).sort((a, b) => b[1] - a[1]);
+    rankListEl.innerHTML = sorted.length
+        ? sorted.map(([name, count], i) => `<li class="list-group-item d-flex justify-content-between align-items-center"><span><strong>${i + 1}º</strong> <span class="badge bg-primary me-2">${count}</span></span><span>${name}</span></li>`).join('')
+        : '<li class="list-group-item text-muted">Nenhum participante ainda.</li>';
+}
 
     // Função para extrair o ID do vídeo do YouTube
     function getYouTubeID(url) {
@@ -96,6 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="btn btn-sm btn-light edit-btn" data-bs-toggle="modal" data-bs-target="#editModal" style="pointer-events: all;"><i class="bi bi-pencil-fill"></i></button>
                         <button class="btn btn-sm btn-danger add-to-queue-btn ms-2" data-video-id="${videoId}" data-video-title="${video.title}" style="pointer-events: all;">
                             <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <button class="btn btn-sm btn-warning delete-btn ms-2" data-internal-id="${video.id}" style="pointer-events: all;">
+                            <i class="bi bi-trash-fill"></i>
                         </button>
                     </div>
                     <img src="https://img.youtube.com/vi/${videoId}/hqdefault.jpg" class="card-img-top" alt="${video.title}" data-video-id="${videoId}" data-video-title="${video.title}" data-bs-toggle="modal" data-bs-target="#playerModal">
@@ -160,6 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allVideos = getStoredVideos().slice().reverse(); // mostra os mais recentes primeiro
         displayVideos(allVideos);
         renderStyleFilters();
+        renderRank(); // Garante que o ranking é sempre atualizado após carregar vídeos
     }
 
     // Evento de submissão do formulário
@@ -174,14 +222,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const newVideo = { title, style, url };
+        const userName = userNameInput.value.trim() || 'Anônimo';
+        const newVideo = { title, style, url, addedBy: userName };
 
         const videos = getStoredVideos();
         const videoWithId = { ...newVideo, id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5) };
         videos.push(videoWithId);
         saveVideos(videos);
+        localStorage.setItem('karaoke_user_name', userName);
         addVideoForm.reset();
-        loadVideos();
+        loadVideos(); // renderRank será chamado dentro de loadVideos
+
     });
 
     // Lógica da busca
@@ -200,6 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Lógica para adicionar à fila, tocar vídeo único e editar
     videoGallery.addEventListener('click', e => {
         const addToQueueBtn = e.target.closest('.add-to-queue-btn');
+        const deleteBtn = e.target.closest('.delete-btn');
         const img = e.target.closest('img');
         const editBtn = e.target.closest('.edit-btn');
 
@@ -207,17 +259,33 @@ document.addEventListener('DOMContentLoaded', () => {
             const videoId = addToQueueBtn.dataset.videoId;
             const videoTitle = addToQueueBtn.dataset.videoTitle;
             addToPlaylist({ id: videoId, title: videoTitle });
+        } else if (deleteBtn) {
+            const pwd = prompt('Digite a senha para deletar:');
+            if (pwd !== '1212') {
+                alert('Senha incorreta!');
+                return;
+            }
+            const videoItem = e.target.closest('.video-item');
+            const internalId = videoItem.dataset.internalId;
+            deleteVideo(internalId);
         } else if (img) {
             const videoId = img.dataset.videoId;
             const videoTitle = img.dataset.videoTitle;
             playlist = [{ id: videoId, title: videoTitle }];
+            savePlaylist(playlist);
             playVideo(0);
         } else if (editBtn) {
             const videoItem = e.target.closest('.video-item');
             const internalId = videoItem.dataset.internalId;
             const videoData = allVideos.find(v => v.id === internalId);
             if(videoData) {
+                const pwd = prompt('Digite a senha para editar:');
+                if(pwd !== '1212') {
+                    alert('Senha incorreta!');
+                    return;
+                }
                 openEditModal(videoData);
+                editModal.show();
             }
         }
     });
@@ -227,12 +295,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!playlist.find(v => v.id === video.id)) {
             playlist.push(video);
             renderPlaylist();
+            savePlaylist(playlist);
         }
     }
 
     function removeFromPlaylist(videoId) {
         playlist = playlist.filter(v => v.id !== videoId);
         renderPlaylist();
+        savePlaylist(playlist);
     }
 
     function renderPlaylist() {
@@ -282,6 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearPlaylistBtn.addEventListener('click', () => {
         playlist = [];
         renderPlaylist();
+        savePlaylist(playlist);
     });
 
     playlistItemsContainer.addEventListener('click', e => {
@@ -303,25 +374,41 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('editVideoTitle').value = video.title;
         document.getElementById('editVideoStyle').value = video.style || '';
         document.getElementById('editVideoUrl').value = video.url;
+        document.getElementById('editAddedBy').value = video.addedBy || '';
+    }
+
+    // Função para deletar vídeo com atualização de ranking
+    function deleteVideo(internalId) {
+        const videos = getStoredVideos();
+        const idx = videos.findIndex(v => v.id === internalId);
+        if (idx !== -1) {
+            const [removed] = videos.splice(idx, 1);
+            saveVideos(videos);
+
+            renderRank();
+            loadVideos();
+        }
     }
 
     editVideoForm.addEventListener('submit', (e) => {
         e.preventDefault();
 
+
         const videoData = {
             id: document.getElementById('editVideoId').value,
             title: document.getElementById('editVideoTitle').value,
             style: document.getElementById('editVideoStyle').value,
-            url: document.getElementById('editVideoUrl').value
+            url: document.getElementById('editVideoUrl').value,
+            addedBy: document.getElementById('editAddedBy').value.trim() || 'Anônimo'
         };
 
         const videos = getStoredVideos();
         const idx = videos.findIndex(v => v.id === videoData.id);
         if (idx !== -1) {
-            videos[idx] = videoData;
+            videos[idx] = { ...videos[idx], ...videoData };
             saveVideos(videos);
             editModal.hide();
-            loadVideos();
+            loadVideos(); // renderRank será chamado dentro de loadVideos
         } else {
             alert('Vídeo não encontrado.');
         }
