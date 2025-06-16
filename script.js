@@ -50,7 +50,57 @@ function playVideo(index) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Configurações do Gist
+const GIST_CONFIG = {
+    token: localStorage.getItem('github_token') || '',
+    gistId: localStorage.getItem('karaoke_gist_id') || '',
+    filename: 'karaoke-data.json'
+};
+
+// Inicializa as configurações da UI
+function initSettings() {
+    const settingsModal = new bootstrap.Modal(document.getElementById('settingsModal'));
+    const githubTokenInput = document.getElementById('githubToken');
+    const saveSettingsBtn = document.getElementById('saveSettings');
+    
+    // Carrega o token salvo
+    if (GIST_CONFIG.token) {
+        githubTokenInput.value = GIST_CONFIG.token;
+    }
+    
+    // Salva as configurações
+    saveSettingsBtn.addEventListener('click', () => {
+        const token = githubTokenInput.value.trim();
+        if (token) {
+            GIST_CONFIG.token = token;
+            localStorage.setItem('github_token', token);
+            settingsModal.hide();
+            alert('Configurações salvas com sucesso!');
+        } else {
+            alert('Por favor, insira um token válido.');
+        }
+    });
+    
+    // Mostra o botão de configurações apenas se não estiver em produção
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        document.querySelector('a[data-bs-target="#settingsModal"]').style.display = 'block';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // Inicializa as configurações
+    initSettings();
+    // Tenta carregar do localStorage primeiro para mostrar algo rápido
+    loadFromLocalStorage();
+    
+    // Depois tenta sincronizar com o Gist
+    if (GIST_CONFIG.gistId) {
+        try {
+            await loadFromGist();
+        } catch (error) {
+            console.error('Erro ao carregar do Gist:', error);
+        }
+    }
     const videoGallery = document.getElementById('video-gallery');
     const addVideoForm = document.getElementById('addVideoForm');
     const searchInput = document.getElementById('searchInput');
@@ -85,6 +135,151 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function saveVideos(videos) {
         localStorage.setItem('karaoke_videos', JSON.stringify(videos));
+        // Salva também como último backup
+        localStorage.setItem('last_karaoke_backup', JSON.stringify({
+            videos: videos,
+            lastUpdated: new Date().toISOString()
+        }));
+    }
+
+    // Função para gerar nome do arquivo de backup com data atual
+    function getBackupFilename() {
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+        return `karaoke-backup-${dateStr}.json`;
+    }
+
+    // Função para salvar dados localmente e no Gist
+    async function saveBackup(videos) {
+        const data = {
+            videos: videos,
+            lastUpdated: new Date().toISOString()
+        };
+        
+        // Salva no localStorage
+        saveToLocalStorage(videos);
+        
+        try {
+            // Tenta salvar no Gist
+            await saveToGist(data);
+            console.log('Dados salvos no Gist com sucesso!');
+        } catch (error) {
+            console.error('Erro ao salvar no Gist, usando armazenamento local:', error);
+            // Faz download local se falhar
+            downloadBackup(data);
+        }
+        
+        return { success: true };
+    }
+    
+    // Função para salvar no Gist
+    async function saveToGist(data) {
+        if (!GIST_CONFIG.token) {
+            throw new Error('Token do GitHub não configurado');
+        }
+        
+        const gistData = {
+            description: 'Backup Karaoke - ' + new Date().toLocaleString(),
+            public: false,
+            files: {}
+        };
+        
+        gistData.files[GIST_CONFIG.filename] = {
+            content: JSON.stringify(data, null, 2)
+        };
+        
+        const url = GIST_CONFIG.gistId 
+            ? `https://api.github.com/gists/${GIST_CONFIG.gistId}` // Atualiza Gist existente
+            : 'https://api.github.com/gists'; // Cria novo Gist
+            
+        const response = await fetch(url, {
+            method: GIST_CONFIG.gistId ? 'PATCH' : 'POST',
+            headers: {
+                'Authorization': `token ${GIST_CONFIG.token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json'
+            },
+            body: JSON.stringify(gistData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Erro ao salvar no Gist');
+        }
+        
+        const result = await response.json();
+        if (!GIST_CONFIG.gistId) {
+            GIST_CONFIG.gistId = result.id;
+            localStorage.setItem('karaoke_gist_id', result.id);
+        }
+        
+        return result;
+    }
+    
+    // Função para carregar do Gist
+    async function loadFromGist() {
+        if (!GIST_CONFIG.gistId) return;
+        
+        const response = await fetch(`https://api.github.com/gists/${GIST_CONFIG.gistId}`, {
+            headers: {
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Falha ao carregar do Gist');
+        }
+        
+        const gist = await response.json();
+        const file = gist.files[GIST_CONFIG.filename];
+        
+        if (!file) {
+            throw new Error('Arquivo não encontrado no Gist');
+        }
+        
+        const data = JSON.parse(file.content);
+        if (data.videos && Array.isArray(data.videos)) {
+            saveToLocalStorage(data.videos);
+            return data.videos;
+        }
+        
+        throw new Error('Formato de dados inválido no Gist');
+    }
+    
+    // Função para fazer download do backup
+    function downloadBackup(data) {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getBackupFilename();
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+    }
+
+    // Função para carregar do localStorage
+    function loadFromLocalStorage() {
+        const videos = getStoredVideos();
+        if (videos.length > 0) {
+            console.log('Carregando vídeos do localStorage');
+            return videos;
+        }
+        return [];
+    }
+    
+    // Função para salvar no localStorage
+    function saveToLocalStorage(videos) {
+        const data = {
+            videos: videos,
+            lastUpdated: new Date().toISOString()
+        };
+        localStorage.setItem('karaoke_videos', JSON.stringify(data));
+        localStorage.setItem('last_karaoke_backup', JSON.stringify(data));
     }
 
     // ---------- Persistência da Playlist ----------
@@ -228,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const videos = getStoredVideos();
         const videoWithId = { ...newVideo, id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5) };
         videos.push(videoWithId);
-        saveVideos(videos);
+        saveBackup([...videos, videoWithId]); // Salva novo backup com o vídeo adicionado
         localStorage.setItem('karaoke_user_name', userName);
         addVideoForm.reset();
         loadVideos(); // renderRank será chamado dentro de loadVideos
@@ -453,4 +648,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Carrega os vídeos ao iniciar a página
     loadVideos();
+
+    // Exportar dados
+    document.getElementById('exportBtn').addEventListener('click', () => {
+        const videos = getStoredVideos();
+        const data = {
+            videos: videos,
+            lastUpdated: new Date().toISOString()
+        };
+        
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `karaoke-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    // Importar dados
+    document.getElementById('importBtn').addEventListener('click', () => {
+        document.getElementById('importFile').click();
+    });
+
+    document.getElementById('importFile').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+            try {
+                // Usamos um serviço público para obter os dados do vídeo sem precisar de API Key
+                const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+                const data = await response.json();
+
+                if (response.ok && data.title) {
+                    videoTitleInput.value = data.title;
+                } else {
+                    videoTitleInput.placeholder = 'Não foi possível buscar o título.';
+                }
+            } catch (error) {
+                alert('Erro ao importar: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = ''; // Limpa o input para permitir reimportação
+    });
 });

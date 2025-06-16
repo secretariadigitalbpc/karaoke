@@ -73,7 +73,10 @@
                 </div>
             </div>
             <aside class="col-12 col-md-3 mt-4 mt-md-0" id="rank-container">
-                <!-- Ranking será carregado aqui -->
+                <h4 class="mb-3">Ranking de Colaboradores</h4>
+                <ul class="list-group" id="rank-list">
+                    <li class="list-group-item text-muted">Nenhum participante ainda.</li>
+                </ul>
             </aside>
         </div>
     </div>
@@ -113,7 +116,55 @@
         <ul id="playlist-items" class="list-group">
           <li class="list-group-item text-muted">A fila está vazia.</li>
         </ul>
+        <nav class="nav flex-column">
+            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#addVideoModal">
+                <i class="bi bi-plus-circle"></i> Adicionar Vídeo
+            </a>
+            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                <i class="bi bi-gear"></i> Configurações
+            </a>
+        </nav>
       </div>
+    </div>
+
+    <!-- Botões de Exportar/Importar -->
+    <div class="container mt-4 mb-5 text-center">
+        <button id="exportBtn" class="btn btn-outline-primary me-2">
+            <i class="bi bi-download"></i> Exportar Dados
+        </button>
+        <button id="importBtn" class="btn btn-outline-success">
+            <i class="bi bi-upload"></i> Importar Dados
+        </button>
+        <input type="file" id="importFile" accept=".json" style="display: none;">
+    </div>
+
+    <!-- Modal Configurações -->
+    <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Configurações</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="githubToken" class="form-label">Token de Acesso do GitHub</label>
+                        <input type="password" class="form-control" id="githubToken" 
+                               placeholder="Cole seu token de acesso do GitHub">
+                        <div class="form-text">
+                            <a href="https://github.com/settings/tokens" target="_blank">Gerar novo token</a> (marque a opção 'gist')
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <small>Seu token é salvo apenas no seu navegador e nunca é enviado para nosso servidor.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" id="saveSettings">Salvar</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
