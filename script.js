@@ -64,6 +64,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allVideos = []; // Armazena todos os vídeos carregados
 
+    // ---------- Persistência no GitHub Pages (localStorage) ----------
+    function getStoredVideos() {
+        try {
+            return JSON.parse(localStorage.getItem('karaoke_videos')) || [];
+        } catch (e) {
+            return [];
+        }
+    }
+    function saveVideos(videos) {
+        localStorage.setItem('karaoke_videos', JSON.stringify(videos));
+    }
+
     // Função para extrair o ID do vídeo do YouTube
     function getYouTubeID(url) {
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -143,21 +155,15 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.value = '';
     }
 
-    // Função para carregar e exibir os vídeos
-    async function loadVideos() {
-        try {
-            const response = await fetch('get_videos.php');
-            allVideos = await response.json();
-            displayVideos(allVideos);
-            renderStyleFilters();
-        } catch (error) {
-            console.error('Erro ao carregar vídeos:', error);
-            videoGallery.innerHTML = '<p class="text-center text-danger col-12">Não foi possível carregar os vídeos.</p>';
-        }
+    // Função para carregar e exibir os vídeos a partir do localStorage
+    function loadVideos() {
+        allVideos = getStoredVideos().slice().reverse(); // mostra os mais recentes primeiro
+        displayVideos(allVideos);
+        renderStyleFilters();
     }
 
     // Evento de submissão do formulário
-    addVideoForm.addEventListener('submit', async (e) => {
+    addVideoForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const title = document.getElementById('videoTitle').value;
         const style = document.getElementById('videoStyle').value;
@@ -170,24 +176,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const newVideo = { title, style, url };
 
-        try {
-            const response = await fetch('add_video.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newVideo),
-            });
-
-            if (response.ok) {
-                addVideoForm.reset();
-                loadVideos();
-            } else {
-                const errorData = await response.json();
-                alert(`Erro ao adicionar vídeo: ${errorData.message}`);
-            }
-        } catch (error) {
-            console.error('Erro ao adicionar vídeo:', error);
-            alert('Ocorreu um erro de comunicação com o servidor.');
-        }
+        const videos = getStoredVideos();
+        const videoWithId = { ...newVideo, id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5) };
+        videos.push(videoWithId);
+        saveVideos(videos);
+        addVideoForm.reset();
+        loadVideos();
     });
 
     // Lógica da busca
@@ -311,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('editVideoUrl').value = video.url;
     }
 
-    editVideoForm.addEventListener('submit', async (e) => {
+    editVideoForm.addEventListener('submit', (e) => {
         e.preventDefault();
 
         const videoData = {
@@ -321,24 +315,15 @@ document.addEventListener('DOMContentLoaded', () => {
             url: document.getElementById('editVideoUrl').value
         };
 
-        try {
-            const response = await fetch('edit_video.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(videoData)
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                editModal.hide();
-                loadVideos(); // Recarrega a galeria para mostrar as alterações
-            } else {
-                alert(`Erro ao editar vídeo: ${result.message}`);
-            }
-        } catch (error) {
-            console.error('Erro ao editar vídeo:', error);
-            alert('Ocorreu um erro de comunicação com o servidor.');
+        const videos = getStoredVideos();
+        const idx = videos.findIndex(v => v.id === videoData.id);
+        if (idx !== -1) {
+            videos[idx] = videoData;
+            saveVideos(videos);
+            editModal.hide();
+            loadVideos();
+        } else {
+            alert('Vídeo não encontrado.');
         }
     });
 

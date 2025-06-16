@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biblioteca de Karaokê</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container mt-5">
+        <header class="text-center mb-5">
+            <h1><i class="bi bi-mic-fill"></i> Minha Biblioteca de Karaokê</h1>
+            <p class="lead">Sua coleção pessoal de músicas para cantar</p>
+            <button class="btn btn-danger" type="button" data-bs-toggle="offcanvas" data-bs-target="#playlistOffcanvas" aria-controls="playlistOffcanvas">
+                <i class="bi bi-music-note-list"></i> Fila de Reprodução <span class="badge bg-light text-dark ms-1" id="playlist-count">0</span>
+            </button>
+        </header>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Adicionar Novo Vídeo</h5>
+                <form id="addVideoForm">
+                    <div class="mb-3">
+                        <label for="videoTitle" class="form-label">Título da Música</label>
+                        <input type="text" class="form-control" id="videoTitle" placeholder="Ex: Bohemian Rhapsody - Queen" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="videoStyle" class="form-label">Estilo Musical</label>
+                        <input type="text" class="form-control" id="videoStyle" placeholder="Ex: Rock, Pop, Sertanejo" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="videoUrl" class="form-label">URL do Vídeo (YouTube)</label>
+                        <div class="input-group">
+                            <input type="url" class="form-control" id="videoUrl" placeholder="Cole a URL do vídeo aqui..." required>
+                            <a href="https://www.youtube.com" target="_blank" class="btn btn-outline-danger"><i class="bi bi-youtube"></i> Procurar no YouTube</a>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Adicionar à Biblioteca</button>
+                </form>
+            </div>
+        </div>
+
+        <hr>
+
+        <div id="style-filters" class="d-flex flex-wrap gap-2 mb-4 justify-content-center">
+            <!-- Botões de filtro serão inseridos aqui -->
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center my-4 flex-wrap gap-3">
+             <h2 class="mb-0">Playlist</h2>
+             <div class="col-12 col-md-5 col-lg-4">
+                <div class="input-group">
+                    <span class="input-group-text" id="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Pesquisar na playlist..." aria-label="Pesquisar" aria-describedby="search-icon">
+                </div>
+            </div>
+        </div>
+
+        <div id="video-gallery" class="row">
+            <!-- Vídeos serão inseridos aqui via JavaScript -->
+        </div>
+    </div>
+
+    <!-- Modal do Player -->
+    <div class="modal fade" id="playerModal" tabindex="-1" aria-labelledby="playerModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title" id="playerModalLabel">Tocando Agora...</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="ratio ratio-16x9">
+              <div id="youtubePlayer"></div>
+            </div>
+          </div>
+          <div class="modal-footer justify-content-center border-secondary">
+                <button class="btn btn-outline-light" id="prev-video-btn"><i class="bi bi-skip-start-fill"></i> Anterior</button>
+                <button class="btn btn-outline-light" id="next-video-btn">Próximo <i class="bi bi-skip-end-fill"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Playlist Offcanvas -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="playlistOffcanvas" aria-labelledby="playlistOffcanvasLabel">
+      <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="playlistOffcanvasLabel"><i class="bi bi-music-note-list"></i> Fila de Reprodução</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+      </div>
+      <div class="offcanvas-body">
+        <div class="d-grid gap-2 mb-3">
+            <button class="btn btn-success" id="play-all-btn" disabled data-bs-toggle="modal" data-bs-target="#playerModal"><i class="bi bi-play-fill"></i> Tocar Tudo</button>
+            <button class="btn btn-outline-danger" id="clear-playlist-btn" disabled><i class="bi bi-trash"></i> Limpar Fila</button>
+        </div>
+        <ul id="playlist-items" class="list-group">
+          <li class="list-group-item text-muted">A fila está vazia.</li>
+        </ul>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="script.js"></script>
+
+    <!-- Modal de Edição -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="editModalLabel">Editar Vídeo</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="editVideoForm">
+              <input type="hidden" id="editVideoId">
+              <div class="mb-3">
+                <label for="editVideoTitle" class="form-label">Título da Música</label>
+                <input type="text" class="form-control" id="editVideoTitle" required>
+              </div>
+              <div class="mb-3">
+                <label for="editVideoStyle" class="form-label">Estilo Musical</label>
+                <input type="text" class="form-control" id="editVideoStyle" required>
+              </div>
+              <div class="mb-3">
+                <label for="editVideoUrl" class="form-label">URL do Vídeo</label>
+                <input type="url" class="form-control" id="editVideoUrl" required>
+              </div>
+              <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+</body>
+</html>
